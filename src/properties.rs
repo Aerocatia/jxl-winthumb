@@ -1,4 +1,4 @@
-use std::io::BufReader;
+use std::io::Read;
 
 use windows as Windows;
 use windows::Win32::{
@@ -14,8 +14,9 @@ use windows::Win32::{
 };
 use windows::core::{GUID, HSTRING, Interface, PCWSTR, PROPVARIANT, implement};
 
+use crate::runner::RayonParallelRunner;
 use crate::winstream::WinStream;
-use jxl_oxide::JxlImage;
+use jxl::api::{JxlDecoder, JxlDecoderOptions, ProcessingResult, states::Initialized};
 
 #[implement(
     Windows::Win32::UI::Shell::PropertiesSystem::IInitializeWithStream,
@@ -44,19 +45,34 @@ impl JXLPropertyStore {
 impl IInitializeWithStream_Impl for JXLPropertyStore_Impl {
     fn Initialize(&self, pstream: Option<&IStream>, _grfmode: u32) -> windows::core::Result<()> {
         let stream = WinStream::from(pstream.unwrap());
-        let reader = BufReader::new(stream);
-
-        let image = JxlImage::builder().read(reader).map_err(|err| {
+        let mut stream = stream;
+        let mut buffer = Vec::new();
+        stream.read_to_end(&mut buffer).map_err(|err| {
             windows::core::Error::new(WINCODEC_ERR_BADIMAGE, format!("{:?}", err))
         })?;
 
-        let (width, height, _left, _top) = image.image_header().metadata.apply_orientation(
-            image.image_header().size.width,
-            image.image_header().size.height,
-            0,
-            0,
-            false,
-        );
+        let mut input = &buffer[..];
+        let decoder = JxlDecoder::<Initialized>::new(JxlDecoderOptions::default());
+        let decoder_with_info = match decoder.process(&mut input, Some(&mut RayonParallelRunner)) {
+            Ok(ProcessingResult::Complete { result }) => result,
+            Ok(ProcessingResult::NeedsMoreInput { .. }) => {
+                return Err(windows::core::Error::new(
+                    WINCODEC_ERR_BADIMAGE,
+                    "Unexpected EOF reading JXL header",
+                ));
+            }
+            Err(err) => {
+                return Err(windows::core::Error::new(
+                    WINCODEC_ERR_BADIMAGE,
+                    format!("{:?}", err),
+                ));
+            }
+        };
+
+        let basic_info = decoder_with_info.basic_info();
+        let (width, height) = basic_info.orientation.map_size(basic_info.size);
+        let width = width as u32;
+        let height = height as u32;
 
         unsafe {
             PSCreateMemoryPropertyStore(

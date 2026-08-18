@@ -2,7 +2,6 @@ use windows::core::Interface;
 use winreg::RegKey;
 use winreg::RegValue;
 use winreg::enums::*;
-use winreg::types::ToRegValue;
 
 use crate::JXLWICBitmapDecoder;
 use crate::guid::{JXLWINTHUMB_VENDOR_CLSID, guid_to_string};
@@ -46,14 +45,14 @@ fn set_pattern(key: &RegKey, pattern: Vec<u8>) -> std::io::Result<()> {
         "Pattern",
         &RegValue {
             vtype: REG_BINARY,
-            bytes: pattern,
+            bytes: pattern.into(),
         },
     )?;
     key.set_raw_value(
         "Mask",
         &RegValue {
             vtype: REG_BINARY,
-            bytes: vec![0xff; len],
+            bytes: vec![0xff; len].into(),
         },
     )?;
 
@@ -113,10 +112,15 @@ fn unregister_clsid() {
     .ok();
 }
 
-fn create_expand_sz(value: &str) -> RegValue {
+fn create_expand_sz(value: &str) -> RegValue<'_> {
+    let bytes: Vec<u8> = value
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .flat_map(|u| u.to_le_bytes())
+        .collect();
     RegValue {
         vtype: winreg::enums::REG_EXPAND_SZ,
-        bytes: value.to_reg_value().bytes,
+        bytes: std::borrow::Cow::Owned(bytes),
     }
 }
 
