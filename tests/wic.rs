@@ -51,9 +51,8 @@ fn basic() {
 fn test_property_store() {
     use jxl_winthumb::JXLPropertyStore;
     use windows::core::{GUID, Interface};
-    use windows::Win32::UI::Shell::PropertiesSystem::{
-        IInitializeWithStream, IPropertyStore, PROPERTYKEY,
-    };
+    use windows::Win32::Foundation::PROPERTYKEY;
+    use windows::Win32::UI::Shell::PropertiesSystem::{IInitializeWithStream, IPropertyStore};
 
     let mem = std::fs::read("tests/alien.jxl").expect("Read the test file");
     let stream = unsafe { SHCreateMemStream(Some(&mem[..])) }.expect("Create an IStream");

@@ -101,13 +101,13 @@ fn unregister_clsid() {
 
     hkcr.delete_subkey_all(format!(
         "CLSID\\{}",
-        &guid_to_string(&JXLWICBitmapDecoder::CLSID)
+        guid_to_string(&JXLWICBitmapDecoder::CLSID)
     ))
     .ok();
 
     hkcr.delete_subkey_all(format!(
         "CLSID\\{{7ED96837-96F0-4812-B211-F13C24117ED3}}\\Instance\\{}",
-        &guid_to_string(&JXLWICBitmapDecoder::CLSID)
+        guid_to_string(&JXLWICBitmapDecoder::CLSID)
     ))
     .ok();
 }

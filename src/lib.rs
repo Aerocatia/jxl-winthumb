@@ -24,7 +24,7 @@ use jxl::{
         Endianness, JxlBasicInfo, JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions,
         JxlOutputBuffer, JxlPixelFormat, ProcessingResult, states::Initialized,
     },
-    headers::{extra_channels::ExtraChannel, image_metadata::Orientation},
+    headers::extra_channels::ExtraChannel,
 };
 
 mod dll;
@@ -79,7 +79,10 @@ impl JXLWICBitmapDecoder {
 }
 
 impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
-    fn QueryCapability(&self, _pistream: Option<&IStream>) -> windows::core::Result<u32> {
+    fn QueryCapability(
+        &self,
+        _pistream: windows::core::Ref<'_, IStream>,
+    ) -> windows::core::Result<u32> {
         log::trace!("QueryCapability");
         Ok((WICBitmapDecoderCapabilityCanDecodeSomeImages.0
             | WICBitmapDecoderCapabilityCanDecodeAllImages.0) as u32)
@@ -87,12 +90,13 @@ impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
 
     fn Initialize(
         &self,
-        pistream: Option<&IStream>,
+        pistream: windows::core::Ref<'_, IStream>,
         _cacheoptions: WICDecodeOptions,
     ) -> windows::core::Result<()> {
         log::trace!("JXLWICBitmapDecoder::Initialize");
 
-        let stream = WinStream::from(pistream.unwrap());
+        let pistream = pistream.ok()?;
+        let stream = WinStream::from(pistream);
         let mut stream = stream;
         let mut raw_data = Vec::new();
         stream.read_to_end(&mut raw_data).map_err(|err| {
@@ -118,7 +122,7 @@ impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
         };
 
         let basic_info = decoder_with_info.basic_info().clone();
-        let (width, height) = basic_info.orientation.map_size(basic_info.size);
+        let (width, height) = (basic_info.size.0 as u32, basic_info.size.1 as u32);
 
         let icc = decoder_with_info
             .output_color_profile()
@@ -129,7 +133,36 @@ impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
 
         let color_type = decoder_with_info.current_pixel_format().color_type;
 
-        let frame_count = 1;
+        let frame_count = if basic_info.animation.is_some() {
+            let mut scan_input = &raw_data[..];
+            let mut options = JxlDecoderOptions::default();
+            options.scan_frames_only = true;
+            let scan_decoder = JxlDecoder::<Initialized>::new(options);
+            if let Ok(ProcessingResult::Complete { result: mut dec_info }) =
+                scan_decoder.process(&mut scan_input, None)
+            {
+                let mut count = 0;
+                while dec_info.has_more_frames() {
+                    match dec_info.process(&mut scan_input, None) {
+                        Ok(ProcessingResult::Complete { result: dec_frame }) => {
+                            count += 1;
+                            match dec_frame.skip_frame(&mut scan_input) {
+                                Ok(ProcessingResult::Complete { result: next_info }) => {
+                                    dec_info = next_info;
+                                }
+                                _ => break,
+                            }
+                        }
+                        _ => break,
+                    }
+                }
+                count.max(1)
+            } else {
+                1
+            }
+        } else {
+            1
+        };
 
         self.decoded.replace(Some(DecodedResult {
             raw_data,
@@ -137,8 +170,8 @@ impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
             color_type,
             frame_count,
             icc: Rc::new(icc),
-            width: width as u32,
-            height: height as u32,
+            width,
+            height,
         }));
 
         Ok(())
@@ -160,7 +193,10 @@ impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
         }
     }
 
-    fn CopyPalette(&self, _pipalette: Option<&IWICPalette>) -> windows::core::Result<()> {
+    fn CopyPalette(
+        &self,
+        _pipalette: windows::core::Ref<'_, IWICPalette>,
+    ) -> windows::core::Result<()> {
         log::trace!("JXLWICBitmapDecoder::CopyPalette");
         WINCODEC_ERR_PALETTEUNAVAILABLE.ok()
     }
@@ -195,13 +231,11 @@ impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
         );
         unsafe {
             if let Some(context) = ppicolorcontexts.as_mut()
-                && ccount == 1
+                && ccount >= 1
                 && !decoded.icc.is_empty()
+                && let Some(context) = context.as_mut()
             {
-                context
-                    .as_mut()
-                    .expect("There should be a color context here")
-                    .InitializeFromMemory(&decoded.icc[..])?;
+                context.InitializeFromMemory(&decoded.icc[..])?;
             }
             if !pcactualcount.is_null() {
                 *pcactualcount = if decoded.icc.is_empty() { 0 } else { 1 };
@@ -305,16 +339,16 @@ impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
             };
         }
 
-        let orig_w = decoded.basic_info.size.0;
-        let orig_h = decoded.basic_info.size.1;
+        let width = decoded.width as usize;
+        let height = decoded.height as usize;
         let bytes_per_sample = 2; // 16-bit
-        let bytes_per_row = orig_w * channels * bytes_per_sample;
-        let mut u16_buf = vec![0u16; orig_w * orig_h * channels];
+        let bytes_per_row = width * channels * bytes_per_sample;
+        let mut u16_buf = vec![0u16; width * height * channels];
 
         {
             let byte_ptr = u16_buf.as_mut_ptr() as *mut u8;
             let mut out_buffers = [unsafe {
-                JxlOutputBuffer::new_from_ptr(byte_ptr, orig_h, bytes_per_row, bytes_per_row)
+                JxlOutputBuffer::new_from_ptr(byte_ptr, height, bytes_per_row, bytes_per_row)
             }];
             match decoder_with_frame.process(
                 &mut input,
@@ -326,28 +360,9 @@ impl IWICBitmapDecoder_Impl for JXLWICBitmapDecoder_Impl {
             }
         }
 
-        let fb = if decoded.basic_info.orientation == Orientation::Identity {
-            FrameBuffer {
-                channels,
-                buf: u16_buf,
-            }
-        } else {
-            let orientation = decoded.basic_info.orientation;
-            let (disp_w, disp_h) = orientation.map_size((orig_w, orig_h));
-            let mut oriented_buf = vec![0u16; disp_w * disp_h * channels];
-            for y in 0..orig_h {
-                for x in 0..orig_w {
-                    let (dx, dy) = orientation.display_pixel((x, y), (orig_w, orig_h));
-                    let src_idx = (y * orig_w + x) * channels;
-                    let dst_idx = (dy * disp_w + dx) * channels;
-                    oriented_buf[dst_idx..dst_idx + channels]
-                        .copy_from_slice(&u16_buf[src_idx..src_idx + channels]);
-                }
-            }
-            FrameBuffer {
-                channels,
-                buf: oriented_buf,
-            }
+        let fb = FrameBuffer {
+            channels,
+            buf: u16_buf,
         };
 
         let frame_decode = JXLWICBitmapFrameDecode::new(
@@ -397,6 +412,9 @@ impl IWICBitmapSource_Impl for JXLWICBitmapFrameDecode_Impl {
             self.width,
             self.height
         );
+        if puiwidth.is_null() || puiheight.is_null() {
+            return Err(E_INVALIDARG.into());
+        }
         unsafe {
             *puiwidth = self.width;
             *puiheight = self.height;
@@ -423,7 +441,10 @@ impl IWICBitmapSource_Impl for JXLWICBitmapFrameDecode_Impl {
         Ok(())
     }
 
-    fn CopyPalette(&self, _pipalette: Option<&IWICPalette>) -> windows::core::Result<()> {
+    fn CopyPalette(
+        &self,
+        _pipalette: windows::core::Ref<'_, IWICPalette>,
+    ) -> windows::core::Result<()> {
         log::trace!("JXLWICBitmapFrameDecode::CopyPalette");
         WINCODEC_ERR_PALETTEUNAVAILABLE.ok()
     }
@@ -431,13 +452,15 @@ impl IWICBitmapSource_Impl for JXLWICBitmapFrameDecode_Impl {
     fn CopyPixels(
         &self,
         prc: *const WICRect,
-        _cbstride: u32,
+        cbstride: u32,
         _cbbuffersize: u32,
         pbbuffer: *mut u8,
     ) -> windows::core::Result<()> {
         log::trace!("JXLWICBitmapFrameDecode::CopyPixels");
 
-        let pbbuffer = pbbuffer as *mut u16;
+        if pbbuffer.is_null() {
+            return Err(E_INVALIDARG.into());
+        }
 
         let full_rect = WICRect {
             X: 0,
@@ -454,17 +477,28 @@ impl IWICBitmapSource_Impl for JXLWICBitmapFrameDecode_Impl {
 
         log::trace!("JXLWICBitmapFrameDecode::CopyPixels::WICRect {:?}", prc);
 
+        if prc.X < 0
+            || prc.Y < 0
+            || prc.Width <= 0
+            || prc.Height <= 0
+            || (prc.X + prc.Width) as u32 > self.width
+            || (prc.Y + prc.Height) as u32 > self.height
+        {
+            return Err(E_INVALIDARG.into());
+        }
+
         let channels = self.frame.channels;
         let buf = &self.frame.buf;
+        let bytes_per_pixel = channels * 2;
 
         for y in prc.Y..(prc.Y + prc.Height) {
-            let src_offset = (self.width as i32 * y + prc.X) * (channels as i32);
-            let dst_offset = prc.Width * (y - prc.Y) * (channels as i32);
+            let src_offset = ((self.width as i32 * y + prc.X) * (channels as i32)) as usize * 2;
+            let dst_offset = ((y - prc.Y) as u32 * cbstride) as usize;
             unsafe {
                 std::ptr::copy_nonoverlapping(
-                    buf.as_ptr().offset(src_offset as isize),
-                    pbbuffer.offset(dst_offset as isize),
-                    (prc.Width as usize) * channels,
+                    (buf.as_ptr() as *const u8).add(src_offset),
+                    pbbuffer.add(dst_offset),
+                    prc.Width as usize * bytes_per_pixel,
                 );
             }
         }
@@ -493,13 +527,11 @@ impl IWICBitmapFrameDecode_Impl for JXLWICBitmapFrameDecode_Impl {
         );
         unsafe {
             if let Some(context) = ppicolorcontexts.as_mut()
-                && ccount == 1
+                && ccount >= 1
                 && !self.icc.is_empty()
+                && let Some(context) = context.as_mut()
             {
-                context
-                    .as_mut()
-                    .expect("There should be a color context here")
-                    .InitializeFromMemory(&self.icc[..])?;
+                context.InitializeFromMemory(&self.icc[..])?;
             }
             if !pcactualcount.is_null() {
                 *pcactualcount = if self.icc.is_empty() { 0 } else { 1 };

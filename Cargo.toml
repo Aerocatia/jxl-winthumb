@@ -1,6 +1,6 @@
 [package]
 name = "jxl-winthumb"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Kagami Sascha Rosylight <saschanaz@outlook.com>"]
 edition = "2024"
 
@@ -11,28 +11,28 @@ crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 simple-logging = "2.0.2"
-log = "0.4.33"
-windows-core = "0.58.0"
+log = "0.4.34"
+windows-core = "0.62.2"
 winreg = "0.56.0"
 jxl = "0.6.0"
 rayon = "1.12.0"
 
 [dependencies.windows]
-version = "0.58.0"
+version = "0.62.2"
 features = [
-  "implement",
   "Win32_Graphics_Imaging",
   "Win32_Foundation",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
   "Win32_System_LibraryLoader",
   "Win32_System_SystemServices",
+  "Win32_System_Variant",
   "Win32_UI_Shell",
   "Win32_UI_Shell_PropertiesSystem",
 ]
 
 [dev-dependencies]
-criterion = { version = "0.5.1", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports"] }
 
 [[bench]]
 name = "benchmark"

@@ -5,14 +5,16 @@ use windows::Win32::{
     Foundation::*,
     System::Com::{
         IStream,
-        StructuredStorage::{InitPropVariantFromStringVector, InitPropVariantFromUInt32Vector},
+        StructuredStorage::{
+            InitPropVariantFromStringVector, InitPropVariantFromUInt32Vector, PROPVARIANT,
+        },
     },
     UI::Shell::PropertiesSystem::{
         IInitializeWithStream_Impl, IPropertyStore_Impl, IPropertyStoreCache,
-        IPropertyStoreCapabilities_Impl, PROPERTYKEY, PSC_READONLY, PSCreateMemoryPropertyStore,
+        IPropertyStoreCapabilities_Impl, PSC_READONLY, PSCreateMemoryPropertyStore,
     },
 };
-use windows::core::{GUID, HSTRING, Interface, PCWSTR, PROPVARIANT, implement};
+use windows::core::{GUID, HSTRING, Interface, PCWSTR, implement};
 
 use crate::runner::RayonParallelRunner;
 use crate::winstream::WinStream;
@@ -43,8 +45,13 @@ impl JXLPropertyStore {
 }
 
 impl IInitializeWithStream_Impl for JXLPropertyStore_Impl {
-    fn Initialize(&self, pstream: Option<&IStream>, _grfmode: u32) -> windows::core::Result<()> {
-        let stream = WinStream::from(pstream.unwrap());
+    fn Initialize(
+        &self,
+        pstream: windows::core::Ref<'_, IStream>,
+        _grfmode: u32,
+    ) -> windows::core::Result<()> {
+        let pstream = pstream.ok()?;
+        let stream = WinStream::from(pstream);
         let mut stream = stream;
         let mut buffer = Vec::new();
         stream.read_to_end(&mut buffer).map_err(|err| {
@@ -70,9 +77,8 @@ impl IInitializeWithStream_Impl for JXLPropertyStore_Impl {
         };
 
         let basic_info = decoder_with_info.basic_info();
-        let (width, height) = basic_info.orientation.map_size(basic_info.size);
-        let width = width as u32;
-        let height = height as u32;
+        let width = basic_info.size.0 as u32;
+        let height = basic_info.size.1 as u32;
 
         unsafe {
             PSCreateMemoryPropertyStore(
@@ -159,10 +165,7 @@ impl IPropertyStore_Impl for JXLPropertyStore_Impl {
 }
 
 impl IPropertyStoreCapabilities_Impl for JXLPropertyStore_Impl {
-    fn IsPropertyWritable(&self, _key: *const PROPERTYKEY) -> windows::core::Result<()> {
-        Err(windows::core::Error::new(
-            WINCODEC_ERR_UNSUPPORTEDOPERATION,
-            "Setter not supported",
-        ))
+    fn IsPropertyWritable(&self, _key: *const PROPERTYKEY) -> windows::core::HRESULT {
+        S_FALSE
     }
 }

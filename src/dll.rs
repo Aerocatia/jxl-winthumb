@@ -13,13 +13,18 @@ use windows::Win32::{
     System::SystemServices::DLL_PROCESS_ATTACH,
     UI::Shell::PropertiesSystem::{IInitializeWithStream, IPropertyStore},
 };
-use windows::core::{GUID, HRESULT, IUnknown, Interface, implement};
+use windows::core::{BOOL, GUID, HRESULT, IUnknown, Interface, implement};
 
 static mut DLL_INSTANCE: HINSTANCE = HINSTANCE(std::ptr::null_mut());
 
 fn get_module_path(instance: HINSTANCE) -> Result<String, HRESULT> {
     let mut path = [0u16; MAX_PATH as usize];
-    let path_len = unsafe { GetModuleFileNameW(instance, &mut path) } as usize;
+    let hmodule = if instance.0.is_null() {
+        None
+    } else {
+        Some(HMODULE(instance.0))
+    };
+    let path_len = unsafe { GetModuleFileNameW(hmodule, &mut path) } as usize;
     String::from_utf16(&path[0..path_len]).map_err(|_| E_FAIL)
 }
 
@@ -29,11 +34,11 @@ struct ClassFactory {}
 impl IClassFactory_Impl for ClassFactory_Impl {
     fn CreateInstance(
         &self,
-        outer: Option<&windows::core::IUnknown>,
+        outer: windows::core::Ref<'_, windows::core::IUnknown>,
         iid: *const GUID,
         object: *mut *mut core::ffi::c_void,
     ) -> windows::core::Result<()> {
-        if outer.is_some() {
+        if !outer.is_null() {
             return CLASS_E_NOAGGREGATION.ok();
         }
         unsafe {
