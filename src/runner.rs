@@ -17,12 +17,8 @@ impl JxlParallelRunner for RayonParallelRunner {
         }
 
         let pool = THREAD_POOL.get_or_init(|| {
-            let threads = std::thread::available_parallelism()
-                .map(|n| n.get())
-                .unwrap_or(1)
-                .min(8);
             rayon::ThreadPoolBuilder::new()
-                .num_threads(threads)
+                .num_threads(self.num_threads())
                 .build()
                 .unwrap()
         });
@@ -35,5 +31,9 @@ impl JxlParallelRunner for RayonParallelRunner {
         }
 
         pool.install(|| (0..num).into_par_iter().try_for_each(fun))
+    }
+
+    fn num_threads(&self) -> usize {
+        std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(8)
     }
 }
