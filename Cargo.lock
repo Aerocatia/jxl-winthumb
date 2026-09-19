@@ -64,9 +64,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.4.6"
+version = "1.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3eb0f42d6c360dc3f8a821f6bf2fdea7f72bfd36b3076eb0e6d1e9e0752fff4"
+checksum = "54413ede23c2daf518f35156dfde027feb2374004d63bd497f983c8db9c0e313"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -210,9 +210,9 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "find-msvc-tools"
-version = "0.1.12"
+version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e0f1c7c3a72c66fd80abe965175f7523475c0489a87d3ff9d6e8c87d87a9d2d"
+checksum = "ef25905e51abafe4dcea6c15fec58c57b601cdbd0ee53d22ea1d3016c587d39b"
 
 [[package]]
 name = "futures-core"
@@ -293,9 +293,9 @@ dependencies = [
 
 [[package]]
 name = "jxl"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35aca5f134772b17dd8361cc73e25454e2420a7230afaeece1d476b1949d0193"
+checksum = "43b041e4bd5bb931cf73b271bc3304eb135bb473914877d64bf77fdf5b4d4687"
 dependencies = [
  "array-init",
  "byteorder",
@@ -324,9 +324,9 @@ dependencies = [
 
 [[package]]
 name = "jxl_macros"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b80e14920b09c3ee9c1e7b73958326515e4c07f14d569a28f657d0301a214c7"
+checksum = "7401c9c53e44e2efa17d7562c613f0972b93cf134aa91f08c14e00c8278ce663"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -335,15 +335,15 @@ dependencies = [
 
 [[package]]
 name = "jxl_simd"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f98970e5b241335f9cf5d397399e52a6f8ce40c2f46566391b42bc558049132e"
+checksum = "ba1f65c01a3f807385be7a1200f78b9d958bff1321b753b859ecfcba63a0642d"
 
 [[package]]
 name = "jxl_transforms"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f8bdfa4b7b3465e54beb39fe0f37e8d8d74225ef8a36f6870b1cbc4081ec808"
+checksum = "8f72e196c6c1e938a4c7e2175d7c83464fa9e7f587224d310cac15d83fc80a37"
 dependencies = [
  "jxl_simd",
 ]
@@ -715,9 +715,9 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.25"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab72a15cf68d77cb0987d3684aa8a45c5ef827e8cb49ee2f30bfd7ba2feb519f"
+checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
 
 [[package]]
 name = "version_check"
